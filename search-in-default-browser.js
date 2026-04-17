@@ -1,52 +1,40 @@
-#!/etc/profiles/per-user/r1ca18/bin/node
+#!/bin/bash
 
-// Required parameters:
-// @raycast.schemaVersion 1
-// @raycast.title search in default browser
-// @raycast.mode silent
+# Required parameters:
+# @raycast.schemaVersion 1
+# @raycast.title search in default browser
+# @raycast.mode silent
 
-// Optional parameters:
-// @raycast.icon 🔎
-// @raycast.argument1 { "type": "text", "placeholder": "Input Search words or URL", "optional": true }
+# Optional parameters:
+# @raycast.icon 🔎
+# @raycast.argument1 { "type": "text", "placeholder": "Input Search words or URL", "optional": true }
 
-// Documentation:
-// @raycast.author r1cA18
-// @raycast.authorURL https://raycast.com/r1cA18
+# Documentation:
+# @raycast.author r1cA18
+# @raycast.authorURL https://raycast.com/r1cA18
 
-const { exec } = require("child_process");
-const { promisify } = require("util");
-const execAsync = promisify(exec);
+set -euo pipefail
 
-async function main() {
-  try {
-    let input = (process.argv[2] || "").trim();
+input="${1-}"
+input="${input#"${input%%[![:space:]]*}"}"
+input="${input%"${input##*[![:space:]]}"}"
 
-    // もし引数が空ならクリップボードから
-    if (!input) {
-      const { stdout } = await execAsync("pbpaste");
-      input = stdout.trim();
-      if (input) {
-        console.log("📋 クリップボードから取得しました");
-      }
-    }
+if [[ -z "$input" ]]; then
+  input="$(/usr/bin/pbpaste | /usr/bin/tr -d '\r')"
+  input="${input#"${input%%[![:space:]]*}"}"
+  input="${input%"${input##*[![:space:]]}"}"
+fi
 
-    if (!input) {
-      console.error("Input not found.");
-      process.exit(1);
-    }
+if [[ -z "$input" ]]; then
+  echo "Input not found." >&2
+  exit 1
+fi
 
-    let url;
-    if (/^https?:\/\//i.test(input)) {
-      url = input;
-    } else {
-      url = `https://www.google.com/search?q=${encodeURIComponent(input)}`;
-    }
+if [[ "$input" =~ ^https?:// ]]; then
+  url="$input"
+else
+  encoded_query="$(/usr/bin/python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$input")"
+  url="https://www.google.com/search?q=${encoded_query}"
+fi
 
-    await execAsync(`open "${url}"`)
-  } catch (e) {
-    console.error("Error:", e.message);
-    process.exit(1);
-  }
-}
-
-main();
+/usr/bin/open "$url"
